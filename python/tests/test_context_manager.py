@@ -1,7 +1,3 @@
-"""
-Unit tests for CactusModel and CactusIndex context managers.
-Run with: python -m unittest python/tests/test_context_manager.py -v
-"""
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
@@ -36,17 +32,17 @@ MOCK_INDEX_HANDLE = MagicMock(name="mock_index_handle")
 
 class TestCactusModelContextManager(unittest.TestCase):
 
-    @patch.object(cactus, "cactus_destroy")
-    @patch.object(cactus, "cactus_init", return_value=MOCK_HANDLE)
+    @patch.object(cactus._lib, "cactus_destroy")
+    @patch.object(cactus._lib, "cactus_init", return_value=MOCK_HANDLE)
     def test_with_calls_destroy(self, mock_init, mock_destroy):
         with cactus.CactusModel("weights/test") as model:
             self.assertIsNotNone(model._handle)
 
-        mock_init.assert_called_once_with("weights/test", None, False)
+        mock_init.assert_called_once_with(b"weights/test", None, False)
         mock_destroy.assert_called_once_with(MOCK_HANDLE)
 
-    @patch.object(cactus, "cactus_destroy")
-    @patch.object(cactus, "cactus_init", return_value=MOCK_HANDLE)
+    @patch.object(cactus._lib, "cactus_destroy")
+    @patch.object(cactus._lib, "cactus_init", return_value=MOCK_HANDLE)
     def test_with_calls_destroy_on_exception(self, mock_init, mock_destroy):
         with self.assertRaises(ValueError):
             with cactus.CactusModel("weights/test") as model:
@@ -54,8 +50,8 @@ class TestCactusModelContextManager(unittest.TestCase):
 
         mock_destroy.assert_called_once_with(MOCK_HANDLE)
 
-    @patch.object(cactus, "cactus_destroy")
-    @patch.object(cactus, "cactus_init", return_value=MOCK_HANDLE)
+    @patch.object(cactus._lib, "cactus_destroy")
+    @patch.object(cactus._lib, "cactus_init", return_value=MOCK_HANDLE)
     def test_double_destroy_safe(self, mock_init, mock_destroy):
         model = cactus.CactusModel("weights/test")
         model.destroy()
@@ -63,9 +59,8 @@ class TestCactusModelContextManager(unittest.TestCase):
 
         mock_destroy.assert_called_once_with(MOCK_HANDLE)
 
-    @patch.object(cactus, "cactus_destroy")
-    @patch.object(cactus, "cactus_init", return_value=MOCK_HANDLE)
-    def test_method_after_destroy_raises(self, mock_init, mock_destroy):
+    @patch.object(cactus._lib, "cactus_init", return_value=MOCK_HANDLE)
+    def test_method_after_destroy_raises(self, mock_init):
         model = cactus.CactusModel("weights/test")
         model.destroy()
 
@@ -81,17 +76,17 @@ class TestCactusModelContextManager(unittest.TestCase):
 
 class TestCactusIndexContextManager(unittest.TestCase):
 
-    @patch.object(cactus, "cactus_index_destroy")
-    @patch.object(cactus, "cactus_index_init", return_value=MOCK_INDEX_HANDLE)
+    @patch.object(cactus._lib, "cactus_index_destroy")
+    @patch.object(cactus._lib, "cactus_index_init", return_value=MOCK_INDEX_HANDLE)
     def test_with_calls_destroy(self, mock_init, mock_destroy):
         with cactus.CactusIndex("/tmp/index", 384) as index:
             self.assertIsNotNone(index._handle)
 
-        mock_init.assert_called_once_with("/tmp/index", 384)
+        mock_init.assert_called_once_with(b"/tmp/index", 384)
         mock_destroy.assert_called_once_with(MOCK_INDEX_HANDLE)
 
-    @patch.object(cactus, "cactus_index_destroy")
-    @patch.object(cactus, "cactus_index_init", return_value=MOCK_INDEX_HANDLE)
+    @patch.object(cactus._lib, "cactus_index_destroy")
+    @patch.object(cactus._lib, "cactus_index_init", return_value=MOCK_INDEX_HANDLE)
     def test_with_calls_destroy_on_exception(self, mock_init, mock_destroy):
         with self.assertRaises(RuntimeError):
             with cactus.CactusIndex("/tmp/index", 384) as index:
@@ -99,8 +94,8 @@ class TestCactusIndexContextManager(unittest.TestCase):
 
         mock_destroy.assert_called_once_with(MOCK_INDEX_HANDLE)
 
-    @patch.object(cactus, "cactus_index_destroy")
-    @patch.object(cactus, "cactus_index_init", return_value=MOCK_INDEX_HANDLE)
+    @patch.object(cactus._lib, "cactus_index_destroy")
+    @patch.object(cactus._lib, "cactus_index_init", return_value=MOCK_INDEX_HANDLE)
     def test_double_destroy_safe(self, mock_init, mock_destroy):
         index = cactus.CactusIndex("/tmp/index", 384)
         index.destroy()
@@ -108,9 +103,8 @@ class TestCactusIndexContextManager(unittest.TestCase):
 
         mock_destroy.assert_called_once_with(MOCK_INDEX_HANDLE)
 
-    @patch.object(cactus, "cactus_index_destroy")
-    @patch.object(cactus, "cactus_index_init", return_value=MOCK_INDEX_HANDLE)
-    def test_method_after_destroy_raises(self, mock_init, mock_destroy):
+    @patch.object(cactus._lib, "cactus_index_init", return_value=MOCK_INDEX_HANDLE)
+    def test_method_after_destroy_raises(self, mock_init):
         index = cactus.CactusIndex("/tmp/index", 384)
         index.destroy()
 
