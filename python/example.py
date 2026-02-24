@@ -22,7 +22,6 @@ from cactus import CactusModel, cactus_stream_transcribe_process, cactus_stream_
 WEIGHTS_DIR = PROJECT_ROOT / "weights"
 ASSETS_DIR = PROJECT_ROOT / "tests" / "assets"
 
-# Load model with context manager — cleanup is automatic, even on errors
 with CactusModel(str(WEIGHTS_DIR / "lfm2-vl-450m")) as vlm:
     print("Loading LFM2-VL-450M...")
 

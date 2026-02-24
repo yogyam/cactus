@@ -1,19 +1,11 @@
 """
-Unit tests for CactusModel and CactusIndex context manager support.
-
-These tests mock the native FFI layer so they run without model weights
-or the compiled native library. The module-level library loading in
-cactus.py is bypassed by patching sys.modules before import.
-
+Unit tests for CactusModel and CactusIndex context managers.
 Run with: python -m unittest python/tests/test_context_manager.py -v
 """
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-# Mock the native library loading before importing cactus.
-# cactus.py calls ctypes.CDLL at module level, which fails without
-# the compiled .dylib. We pre-populate sys.modules with a mock.
 mock_lib = MagicMock()
 mock_ctypes = MagicMock()
 mock_ctypes.CDLL.return_value = mock_lib
@@ -27,14 +19,10 @@ mock_ctypes.c_float = MagicMock()
 mock_ctypes.c_uint8 = MagicMock()
 mock_ctypes.c_size_t = MagicMock()
 
-# Patch ctypes and Path.exists before cactus.py imports
 with patch.dict(sys.modules, {"ctypes": mock_ctypes}):
-    # We need to also patch pathlib.Path.exists to return True
     with patch("pathlib.Path.exists", return_value=True):
-        # Remove cached cactus module if present so we get a fresh import
         sys.modules.pop("cactus", None)
 
-        # Add the src directory to path
         import os
         src_dir = os.path.join(os.path.dirname(__file__), "..", "src")
         if src_dir not in sys.path:
