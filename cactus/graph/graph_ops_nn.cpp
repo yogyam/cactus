@@ -155,13 +155,13 @@ void compute_matmul_node(GraphNode& node, const std::vector<std::unique_ptr<Grap
     const bool lhs_is_prequantized_int8 = (lhs_buffer.precision == Precision::INT8 &&
                                             lhs_buffer.has_activation_scales());
 
-    if (rhs_buffer.is_grouped_int8()) {
+    if (PrecisionTraits::is_integer(rhs_buffer.precision) && rhs_buffer.group_size > 0) {
         const int8_t* rhs = rhs_buffer.data_as<int8_t>();
         const __fp16* rhs_scales = rhs_buffer.scales_as_fp16();
         __fp16* output = node.output_buffer.data_as<__fp16>();
 
         if (!pretransposed_rhs) {
-            throw std::runtime_error("Group-wise INT8 matmul requires pretransposed weights");
+            throw std::runtime_error("Group-wise quantized matmul requires pretransposed weights");
         }
 
         const int8_t* lhs_int8;
@@ -178,13 +178,13 @@ void compute_matmul_node(GraphNode& node, const std::vector<std::unique_ptr<Grap
             lhs_int8 = quant_activation_buffer.data();
             lhs_scales = quant_scales_buffer.data();
         } else {
-            throw std::runtime_error("INT8 matmul requires INT8 (pre-quantized) or FP16 activations");
+            throw std::runtime_error("Quantized matmul requires INT8 (pre-quantized) or FP16 activations");
         }
 
-        cactus_matmul_int8(lhs_int8, lhs_scales,
-                           rhs, rhs_scales, output,
-                           M, K, N, rhs_buffer.group_size);
-
+        cactus_matmul_integer(rhs_buffer.precision,
+                        lhs_int8, lhs_scales,
+                        rhs, rhs_scales, output,
+                        M, K, N, rhs_buffer.group_size);
     } else {
         if (lhs_buffer.precision != Precision::FP16) {
             throw std::runtime_error("FP16 matmul requires FP16 activations");
@@ -248,7 +248,7 @@ namespace {
             return;
         }
 
-        if (rhs_buffer.precision == Precision::INT8 && rhs_buffer.is_grouped_int8()) {
+        if (PrecisionTraits::is_integer(rhs_buffer.precision) && rhs_buffer.group_size > 0) {
             int8_t* lhs_q = moe_lhs_q_buf.data();
             float* lhs_scales = moe_lhs_scales_buf.data();
             if (!lhs_prequantized) {
@@ -259,14 +259,15 @@ namespace {
                     cactus_fp16_to_int8(lhs + row * K, lhs_q + row * K, K, scale);
                 }
             }
-            cactus_matmul_int8(lhs_q, lhs_scales,
-                               rhs_buffer.data_as<int8_t>(),
-                               rhs_buffer.scales_as_fp16(),
-                               output, M, K, N, rhs_buffer.group_size);
+            cactus_matmul_integer(rhs_buffer.precision,
+                           lhs_q, lhs_scales,
+                           rhs_buffer.data_as<int8_t>(),
+                           rhs_buffer.scales_as_fp16(),
+                           output, M, K, N, rhs_buffer.group_size);
             return;
         }
 
-        throw std::runtime_error("moe_layer only supports FP16 or grouped INT8 expert weights");
+        throw std::runtime_error("moe_layer only supports FP16 or grouped INT4/INT8 expert weights");
     }
 }
 
@@ -837,26 +838,26 @@ void compute_conv1d_node(GraphNode& node, const std::vector<std::unique_ptr<Grap
                       Y.data_as<__fp16>(), N, L, C_in, C_out, K, stride);
 }
 
-void compute_stft_magnitude_node(GraphNode& node, const std::vector<std::unique_ptr<GraphNode>>& nodes,
-                                 const std::unordered_map<size_t, size_t>& node_index_map) {
+void compute_stft_node(GraphNode& node, const std::vector<std::unique_ptr<GraphNode>>& nodes,
+                               const std::unordered_map<size_t, size_t>& node_index_map) {
     const auto& X = nodes[node_index_map.at(node.input_ids[0])]->output_buffer;
     const auto& W = nodes[node_index_map.at(node.input_ids[1])]->output_buffer;
     auto& Y = node.output_buffer;
 
-    const size_t N = X.shape[0];
-    const size_t C_in = X.shape[1];
-    const size_t L = X.shape[2];
-    const size_t C_out = W.shape[0];
-    const size_t K = W.shape[2];
-    const size_t stride = node.params.stride;
-    const size_t num_fft_bins = node.params.num_fft_bins;
-
     if (X.precision != Precision::FP16 || W.precision != Precision::FP16) {
-        throw std::runtime_error("stft_magnitude only supports FP16");
+        throw std::runtime_error("stft only supports FP16");
     }
 
-    cactus_stft_magnitude_f16(X.data_as<__fp16>(), W.data_as<__fp16>(),
-                              Y.data_as<__fp16>(), N, L, C_in, C_out, K, stride, num_fft_bins);
+    const size_t N            = X.shape[0];
+    const size_t C_in         = X.shape[1];
+    const size_t L            = X.shape[2];
+    const size_t C_out        = W.shape[0];
+    const size_t K            = W.shape[2];
+    const size_t stride       = node.params.stride;
+    const size_t num_fft_bins = node.params.num_fft_bins;
+
+    cactus_stft_f16(X.data_as<__fp16>(), W.data_as<__fp16>(),
+                            Y.data_as<__fp16>(), N, L, C_in, C_out, K, stride, num_fft_bins);
 }
 
 void compute_conv1d_k7s3_node(GraphNode& node, const std::vector<std::unique_ptr<GraphNode>>& nodes,

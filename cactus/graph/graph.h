@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+#include <cassert>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -125,7 +126,7 @@ enum class OpType {
     BILINEAR_INTERPOLATION,
     SUM, MEAN, VARIANCE, MIN, MAX,
     RMS_NORM, ROPE, ROPE_GPTJ, SOFTMAX, ATTENTION, ATTENTION_INT8_HYBRID, CONV1D_CAUSAL, CONV1D_K3, CONV1D_K7S3, CONV1D,
-    SCALAR_ADD, SCALAR_SUBTRACT, SCALAR_MULTIPLY, SCALAR_DIVIDE, SCALAR_EXP, SCALAR_SQRT, SCALAR_COS, SCALAR_SIN,
+    SCALAR_ADD, SCALAR_SUBTRACT, SCALAR_MULTIPLY, SCALAR_DIVIDE, SCALAR_EXP, SCALAR_SQRT, SCALAR_COS, SCALAR_SIN, SCALAR_LOG,
     RELU, SILU, GELU, GELU_ERF, SIGMOID, TANH,
     SAMPLE, CONCAT,
     SCATTER_TOPK,
@@ -135,7 +136,7 @@ enum class OpType {
     PERSISTENT,
     QUANTIZE_ACTIVATIONS,
     LSTM_CELL,
-    STFT_MAGNITUDE
+    STFT
 };
 
 struct PrecisionTraits {
@@ -151,8 +152,17 @@ struct PrecisionTraits {
 
     static constexpr size_t packed_size_of(Precision prec, size_t count) {
         switch (prec) {
-            case Precision::INT4: return (count + 1) / 2;  
+            case Precision::INT4: return (count + 1) / 2;
             default: return count * size_of(prec);
+        }
+    }
+
+    static size_t byte_offset_of(Precision prec, size_t element_offset) {
+        switch (prec) {
+            case Precision::INT4:
+                assert(element_offset % 32 == 0 && "INT4 byte offset must be group-aligned (multiple of 32)");
+                return element_offset / 2;
+            default: return element_offset * size_of(prec);
         }
     }
 
@@ -191,7 +201,6 @@ struct TensorConfig {
     Precision compute_precision = Precision::INT8;
     Precision output_precision = Precision::INT8;
     bool auto_mixed_precision = false;
-    bool enable_int4_packing = true;
     
     static TensorConfig& global();
 };
@@ -251,6 +260,10 @@ struct BufferDesc {
 
     bool is_grouped_int8() const {
         return precision == Precision::INT8 && group_size > 0;
+    }
+
+    bool is_grouped_int4() const {
+        return precision == Precision::INT4 && group_size > 0;
     }
 
     void set_grouped_scales(size_t gs, size_t ng, void* scales_ptr) {
@@ -432,6 +445,7 @@ public:
     size_t scalar_sqrt(size_t input);
     size_t scalar_cos(size_t input);
     size_t scalar_sin(size_t input);
+    size_t scalar_log(size_t input);
     
     size_t relu(size_t input);
     size_t silu(size_t input);
@@ -512,7 +526,7 @@ public:
     size_t conv1d(size_t input, size_t weight, size_t bias, size_t stride);
 
     size_t lstm_cell(size_t input, size_t h_prev, size_t c_prev, size_t weight_ih, size_t weight_hh, size_t bias_ih, size_t bias_hh);
-    size_t stft_magnitude(size_t input, size_t weight, size_t stride, size_t num_fft_bins);
+    size_t stft(size_t input, size_t weight, size_t stride, size_t num_fft_bins);
 
     size_t sample(size_t logits, float temperature = 0.6f, float top_p = 0.95f, size_t top_k = 20,
                   const std::unordered_map<uint32_t, float>& logit_bias = {});
@@ -617,12 +631,9 @@ namespace GraphFile {
         bool is_interleaved_ = false;
         size_t original_N_ = 0;
 
-        std::unique_ptr<int8_t[]> unpacked_data_;  
-
         void parse_header();
         void apply_madvise_hints();
-        void unpack_int4_data();
     };
 }
 
-#endif 
+#endif
