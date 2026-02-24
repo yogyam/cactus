@@ -34,6 +34,23 @@ print(response["response"])
 cactus_destroy(model)
 ```
 
+## Context Manager (Recommended)
+
+The context manager ensures cleanup even if an error occurs:
+
+```python
+from cactus import CactusModel
+import json
+
+with CactusModel("weights/lfm2-vl-450m") as model:
+    messages = [{"role": "user", "content": "What is 2+2?"}]
+    response = json.loads(model.complete(messages))
+    print(response["response"])
+# cactus_destroy called automatically
+```
+
+The free functions (`cactus_init`, `cactus_complete`, etc.) still work as before.
+
 ## API Reference
 
 ### `cactus_init(model_path, corpus_dir=None)`
